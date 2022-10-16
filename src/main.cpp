@@ -2,6 +2,7 @@
 #include <Wire.h>
 #include <TFT_eSPI.h>
 #include <gamepad.hpp>
+#include <power_mgr.hpp>
 #include <SD_MMC.h>
 using namespace fs;
 extern "C"
@@ -11,6 +12,7 @@ extern "C"
 
 TFT_eSPI tft;
 gamepad input;
+power_mgr power;
 int16_t bg_color;
 uint16_t myPallete[256];
 void display_list(const char* list, int start_index, int selected_index) {
@@ -100,10 +102,12 @@ char* load_file_list() {
   result[total_len]='\0';
   return result;
 }
+
 void setup() {
   char *argv[1];
   Wire.begin(21,22,uint32_t(100000));
   Serial.begin(115200);
+  power.initialize();
   input.initialize();
   // backlight
   pinMode(27,OUTPUT);
@@ -113,6 +117,7 @@ void setup() {
   tft.begin();
   tft.setRotation(1);
   tft.fillScreen(TFT_BLACK);
+
   char* list = load_file_list();
   int list_count = 0;
   const char* sz = list;

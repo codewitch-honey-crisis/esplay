@@ -21,8 +21,10 @@ extern "C" {
 
 #include <TFT_eSPI.h>
 #include <gamepad.hpp>
-
+#include <power_mgr.hpp>
+#include <battery.h>
 extern gamepad input;
+extern power_mgr power;
 TimerHandle_t timer;
 
 /* memory allocation */
@@ -65,6 +67,29 @@ extern TFT_eSPI tft;
 static int16_t w, h, frame_x, frame_y, frame_x_offset, frame_width, frame_height, frame_line_pixels;
 extern int16_t bg_color;
 extern uint16_t myPalette[];
+
+static void draw_battery(int x,int y,float level) {
+  int l = (int)(level*14);
+  tft.startWrite();
+  tft.setAddrWindow(x,y,9,16);
+  tft.pushPixels(battery,battery_size.width*battery_size.height);
+  tft.endWrite();
+  uint16_t col = TFT_GREEN;
+  if(level<=.5) {
+    col = TFT_YELLOW;
+  } else if(level<=.25) {
+    col = TFT_RED;
+  }
+  if(l>13) {
+    if(l==14) {
+      tft.drawFastHLine(x+3,y+1,3,col);  
+      --l;
+    }
+    tft.drawFastHLine(x+3,y+2,3,col);
+    --l;
+  }
+  tft.fillRect(x+1,y+2+(13-l),7,l,col);
+}
 
 static void display_begin()
 {
@@ -109,7 +134,7 @@ static void display_init()
         frame_line_pixels = frame_width / 2;
     }
 }
-
+static unsigned int framecount = 0;
 static void display_write_frame(const uint8_t *data[])
 {
     tft.startWrite();
@@ -122,6 +147,9 @@ static void display_write_frame(const uint8_t *data[])
             for(int32_t j = 0;j<frame_line_pixels;j++) {
                 tft.pushColor(myPalette[*p++]);
             }
+        }
+        if(framecount % 30 == 0) {
+            draw_battery(300,4,power.level());
         }
     }
     else
@@ -194,6 +222,7 @@ static void display_write_frame(const uint8_t *data[])
         // }
     }
     tft.endWrite();
+    ++framecount;
 }
 static void display_clear()
 {
@@ -306,7 +335,7 @@ static uint32_t controller_read_input() {
     if(b.menu) {
         ESP.restart();
     }
-    return 0xFFFFFFFF ^ ((!b.down << 0) | (!b.up << 1) | (!b.right << 2) | (!b.left << 3) | (!b.select << 4) | (!b.start << 5) | (b.a << 6) | (b.b << 7) | (!b.l << 8) | (!b.r << 9));
+    return 0xFFFFFFFF ^ ((!b.down << 0) | (!b.up << 1) | (!b.right << 2) | (!b.left << 3) | (b.select << 4) | (b.start << 5) | (b.a << 6) | (b.b << 7) | (!b.l << 8) | (!b.r << 9));
 }
 
 static void osd_initinput()
