@@ -22,9 +22,11 @@ extern "C" {
 #include <TFT_eSPI.h>
 #include <gamepad.hpp>
 #include <power_mgr.hpp>
+#include <audio.hpp>
 #include <battery.h>
 extern gamepad input;
 extern power_mgr power;
+
 TimerHandle_t timer;
 
 /* memory allocation */
@@ -42,23 +44,53 @@ extern void *mem_alloc(int size, bool prefer_fast_memory)
 }
 
 /* sound */
+static void (*audio_callback)(void *buffer, int length) = NULL;
+static short *audio_frame=NULL;
+
 extern "C" int osd_init_sound() {
+    
+    audio_frame = (short*)malloc(4 * 512);
+    //audio_init(DEFAULT_SAMPLERATE);
+    audio_callback = NULL;
+    audio_volume_set(100);
+    audio_amp_enable();
     return 0;
 }
 extern "C" void osd_stopsound() {
+    audio_callback = NULL;
+}
+
+extern "C" void do_audio_frame()
+{
+    int left = 32000 / NES_REFRESH_RATE;
+    while (left)
+    {
+        int n = 512;
+        if (n > left)
+            n = left;
+        audio_callback(audio_frame, n);
+        //16 bit mono -> 32-bit (16 bit r+l)
+        for (int i = n - 1; i >= 0; i--)
+        {
+            int sample = (int)audio_frame[i];
+
+            audio_frame[i * 2] = (short)sample;
+            audio_frame[i * 2 + 1] = (short)sample;
+        }
+        audio_submit(audio_frame,n);
+        left -= n;
+    }
 
 }
-static void do_audio_frame() {
 
-}
 extern "C" void osd_setsound(void (*playfunc)(void *buffer, int length))
 {
 	//Indicates we should call playfunc() to get more data.
-	//audio_callback = playfunc;
+	audio_callback = playfunc;
 }
 
 extern "C" void osd_getsoundinfo(sndinfo_t *info) {
-    info->sample_rate = 22050;
+    info->sample_rate = 32000;
 	info->bps = 16;
 }
 

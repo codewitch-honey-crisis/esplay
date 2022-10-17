@@ -3,6 +3,7 @@
 #include <TFT_eSPI.h>
 #include <gamepad.hpp>
 #include <power_mgr.hpp>
+#include <audio.hpp>
 #include <SD_MMC.h>
 using namespace fs;
 extern "C"
@@ -109,10 +110,12 @@ void setup() {
   Serial.begin(115200);
   power.initialize();
   input.initialize();
+  SD_MMC.begin("/sdcard",true);
+  audio_init(32000);
   // backlight
   pinMode(27,OUTPUT);
   digitalWrite(27,HIGH);
-  SD_MMC.begin("/sdcard",true);
+  
   Serial.printf("SD size %02fMB\n",SD_MMC.cardSize()/1024.0/1024.0);
   tft.begin();
   tft.setRotation(1);
