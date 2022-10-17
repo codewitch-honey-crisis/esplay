@@ -68,7 +68,7 @@ static int16_t w, h, frame_x, frame_y, frame_x_offset, frame_width, frame_height
 extern int16_t bg_color;
 extern uint16_t myPalette[];
 
-static void draw_battery(int x,int y,float level) {
+static void draw_battery(int x,int y,float level,bool color) {
   int l = (int)(level*14);
   tft.startWrite();
   tft.setAddrWindow(x,y,9,16);
@@ -79,6 +79,9 @@ static void draw_battery(int x,int y,float level) {
     col = TFT_YELLOW;
   } else if(level<=.25) {
     col = TFT_RED;
+  }
+  if(!color) {
+    col = TFT_WHITE;
   }
   if(l>13) {
     if(l==14) {
@@ -137,6 +140,7 @@ static void display_init()
 static unsigned int framecount = 0;
 static void display_write_frame(const uint8_t *data[])
 {
+    static unsigned int chargecount = 0;
     tft.startWrite();
     if (w < 480)
     {
@@ -148,9 +152,16 @@ static void display_write_frame(const uint8_t *data[])
                 tft.pushColor(myPalette[*p++]);
             }
         }
-        if(framecount % 30 == 0) {
-            draw_battery(300,4,power.level());
+        if((framecount % 30)==0 && power.charging()) {
+            draw_battery(300,4,(chargecount%101)/100.0f,false);
+        } else if(framecount % 150 == 0) { 
+            if(power.charged()) {
+                draw_battery(300,4,1,false);
+            } else {        
+                draw_battery(300,4,power.level(),true);
+            }
         }
+        ++chargecount;
     }
     else
     {
