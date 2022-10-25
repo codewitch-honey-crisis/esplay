@@ -129,11 +129,7 @@ void setup() {
   power.initialize();
   input.initialize();
   SD_MMC.begin("/sdcard",true);
-  /*
-  audio_init(32000);
-  audio_volume_set(100);
-  audio_amp_enable();
- */
+  
   // backlight
   pinMode(27,OUTPUT);
   digitalWrite(27,HIGH);
@@ -202,32 +198,8 @@ void setup() {
   nofrendo_main(1,argv);
 }
 
-#define SAMPLE_RATE     (32000)
-#define SAMPLE_RATE_INPUT     (32000)
-#define DMA_BUF_LEN     (512)
-#define DMA_BUF_LEN_INPUT     (512)
-#define DMA_NUM_BUF     (8)
-#define TWOPI           (6.28318531f)
-#define I2S_NUM I2S_NUM_0
-//static short audio_out_buf[DMA_BUF_LEN];
-// Accumulated phase
-//static float phase = 0.0f;
-//const float pdc = TWOPI*500/SAMPLE_RATE;
-//float pd = pdc;
+
 
 void loop() {
-  /*float f;
-  int16_t samp;
-  for (int i=0; i < DMA_BUF_LEN; i++) {
-    f = (sinf(phase) + 1.0f) * 0.5f;
-    // Increment and wrap phase
-    phase += pdc;
-    if (phase >= TWOPI) {
-        phase -= TWOPI;
-    }
-    samp = f* 65535.0f * .5;
-    audio_out_buf[i] = samp ;
-    audio_submit(audio_out_buf,DMA_BUF_LEN/2);
-  }*/
-
+  
 }
