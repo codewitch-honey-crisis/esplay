@@ -324,7 +324,10 @@ static int rom_getheader(FILE *fp, rominfo_t *rominfo)
 
    if (memcmp(head.ines_magic, ROM_INES_MAGIC, 4))
    {
-      gui_sendmsg(GUI_RED, "%s is not a valid ROM image", rominfo->filename);
+      char sz[5];
+      memcpy(sz,head.ines_magic,4);
+      sz[4]=0;
+      gui_sendmsg(GUI_RED, "%s is not a valid ROM image! header: %s", rominfo->filename,sz);
       return -1;
    }
 

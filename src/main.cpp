@@ -5,6 +5,15 @@
 #include <power_mgr.hpp>
 #include <audio.hpp>
 #include <SD_MMC.h>
+
+
+#include <string.h>
+#include "freertos/FreeRTOS.h"
+#include "esp_system.h"
+#include "driver/i2s.h"
+#include "driver/gpio.h"
+#include "driver/rtc_io.h"
+
 using namespace fs;
 extern "C"
 {
@@ -50,7 +59,7 @@ void display_list(const char* list, int start_index, int selected_index) {
 }
 char* load_file_list() {
   char* result = nullptr;
-  File root = SD_MMC.open("/","r");
+  File root = SD_MMC.open("/","rb");
   File file = root.openNextFile();
   size_t total_len = 0;  
   while (file)
@@ -65,23 +74,32 @@ char* load_file_list() {
           int8_t len = strlen(filename);
           if (0==strcasecmp(filename + (len - 4), ".nes"))
           {
-              if(result==nullptr) {
-                result = (char*)malloc(len+1);
-                if(result==nullptr) {
-                  Serial.println("Out of memory loading files");
-                  while(true);
-                }
-              } else {
-                  result = (char*)realloc(result,total_len+len+1);
+              char sz[5];
+              file.seek(0);
+              if(4==file.read((uint8_t*)sz,4)) {
+                sz[4]='\0';
+                if(0==strcmp(sz,"NES\x1A")) {
                   if(result==nullptr) {
-                    Serial.println("Out of memory loading files");
-                    while(true);
+                    result = (char*)malloc(len+1);
+                    if(result==nullptr) {
+                      Serial.println("Out of memory loading files");
+                      while(true);
+                    }
+                  } else {
+                      result = (char*)realloc(result,total_len+len+1);
+                      if(result==nullptr) {
+                        Serial.println("Out of memory loading files");
+                        while(true);
+                      }
                   }
+                  Serial.println(filename);
+                  strcpy(result+total_len,filename);
+                  total_len+=(len+1);
+                  result[total_len-1]='\0';
+                } else {
+                  Serial.printf("Invalid fourcc: %x %x %x %x\n",sz[0],sz[1],sz[2],sz[3]);
+                }
               }
-              Serial.println(filename);
-              strcpy(result+total_len,filename);
-              total_len+=(len+1);
-              result[total_len-1]='\0';
           }
       }
       file.close();
@@ -111,7 +129,11 @@ void setup() {
   power.initialize();
   input.initialize();
   SD_MMC.begin("/sdcard",true);
+  /*
   audio_init(32000);
+  audio_volume_set(100);
+  audio_amp_enable();
+ */
   // backlight
   pinMode(27,OUTPUT);
   digitalWrite(27,HIGH);
@@ -145,6 +167,7 @@ void setup() {
       }
       delay(1);
     }
+    delay(100);
     if(b.down && !ob.down) {
       if(selected_index<list_count-1) {
         if(selected_index-start_index==13) {
@@ -179,9 +202,32 @@ void setup() {
   nofrendo_main(1,argv);
 }
 
+#define SAMPLE_RATE     (32000)
+#define SAMPLE_RATE_INPUT     (32000)
+#define DMA_BUF_LEN     (512)
+#define DMA_BUF_LEN_INPUT     (512)
+#define DMA_NUM_BUF     (8)
+#define TWOPI           (6.28318531f)
+#define I2S_NUM I2S_NUM_0
+//static short audio_out_buf[DMA_BUF_LEN];
+// Accumulated phase
+//static float phase = 0.0f;
+//const float pdc = TWOPI*500/SAMPLE_RATE;
+//float pd = pdc;
+
 void loop() {
-  //gamepad_buttons b = input.read();
- // if(b.b) {
-  //  Serial.println("b");
-  //}
+  /*float f;
+  int16_t samp;
+  for (int i=0; i < DMA_BUF_LEN; i++) {
+    f = (sinf(phase) + 1.0f) * 0.5f;
+    // Increment and wrap phase
+    phase += pdc;
+    if (phase >= TWOPI) {
+        phase -= TWOPI;
+    }
+    samp = f* 65535.0f * .5;
+    audio_out_buf[i] = samp ;
+    audio_submit(audio_out_buf,DMA_BUF_LEN/2);
+  }*/
+
 }

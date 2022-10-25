@@ -17,6 +17,8 @@ extern "C" {
 #include <nes/nesinput.h>
 #include <nofconfig.h>
 #include <osd.h>
+
+#include <driver/i2s.h>
 }
 
 #include <TFT_eSPI.h>
@@ -28,6 +30,7 @@ extern gamepad input;
 extern power_mgr power;
 
 TimerHandle_t timer;
+
 
 /* memory allocation */
 extern void *mem_alloc(int size, bool prefer_fast_memory)
@@ -50,9 +53,14 @@ static short *audio_frame=NULL;
 extern "C" int osd_init_sound() {
     
     audio_frame = (short*)malloc(4 * 512);
+    if(audio_frame==NULL) {
+        return -1;
+    }
+    audio_init(32000);
+ 
     //audio_init(DEFAULT_SAMPLERATE);
     audio_callback = NULL;
-    audio_volume_set(100);
+    audio_volume_set(30);
     audio_amp_enable();
     return 0;
 }
@@ -74,8 +82,8 @@ extern "C" void do_audio_frame()
         {
             int sample = (int)audio_frame[i];
 
-            audio_frame[i * 2] = (short)sample;
-            audio_frame[i * 2 + 1] = (short)sample;
+            audio_frame[i * 2] = sample;
+            audio_frame[i * 2 + 1] = sample;
         }
         audio_submit(audio_frame,n);
         left -= n;
@@ -172,6 +180,8 @@ static void display_init()
 static unsigned int framecount = 0;
 static void display_write_frame(const uint8_t *data[])
 {
+ 
+  // time critical
     static unsigned int chargecount = 0;
     tft.startWrite();
     if (w < 480)
