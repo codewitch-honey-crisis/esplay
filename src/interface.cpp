@@ -131,7 +131,7 @@ static void start_menu() {
                 }
             break;
             case 2:
-                if((!ob.a && b.a) || !(ob.b || b.b) || (!ob.start && b.start)) {
+                if((!ob.a && b.a) || (!ob.b || b.b) || (!ob.start && b.start)) {
                     ESP.restart();
                 }
             break;
