@@ -1,10 +1,12 @@
+#include <Arduino.h>
+#include <SPIFFS.h>
 #include <string.h>
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/timers.h>
 #include <freertos/task.h>
 #include <freertos/queue.h>
-
+#include <freertos/semphr.h>
 #include <esp_heap_caps.h>
 extern "C" {
 #include <noftypes.h>
@@ -17,21 +19,132 @@ extern "C" {
 #include <nes/nesinput.h>
 #include <nofconfig.h>
 #include <osd.h>
-
+#include <nes/nesstate.h>
 #include <driver/i2s.h>
 }
 
 #include <TFT_eSPI.h>
+#include <setting_info.hpp>
 #include <gamepad.hpp>
 #include <power_mgr.hpp>
 #include <audio.hpp>
 #include <battery.h>
+
 extern gamepad input;
 extern power_mgr power;
-
+extern setting_info settings;
+extern TFT_eSPI tft;
 TimerHandle_t timer;
+SemaphoreHandle_t menu_sync;
+static void draw_menu(int selected_index) {
+    
+    char sz[64];
+    int x = 50, y=50;
+    int w = TFT_WIDTH-100, h = TFT_HEIGHT-100;
+    tft.fillRect(x,y,w,h,TFT_BLACK);
+    x+=4; y+=4; w-=8; h-=8;
 
+    tft.setTextSize(0);
+    if(selected_index==0) {
+        tft.setTextColor(TFT_RED);
+    } else {
+        tft.setTextColor(TFT_WHITE);
+    }
+    tft.setCursor(x,y);
+    snprintf(sz,sizeof(sz),"volume: %d",((settings.volume+5)/10));
+    tft.print(sz);
+    y+=10;
 
+    if(selected_index==1) {
+        tft.setTextColor(TFT_RED);
+    } else {
+        tft.setTextColor(TFT_WHITE);
+    }
+    tft.setCursor(x,y);
+    snprintf(sz,sizeof(sz),"save slot: %d",settings.save_slot);
+    tft.print(sz);
+    y+=10;
+    
+    if(selected_index==2) {
+        tft.setTextColor(TFT_RED);
+    } else {
+        tft.setTextColor(TFT_WHITE);
+    }
+    tft.setCursor(x,y);
+    strncpy(sz,"exit",sizeof(sz));
+    tft.print(sz);
+    y+=10;
+    
+}
+static void start_menu() {
+    audio_terminate();
+    delay(100);
+    
+    xSemaphoreTake(menu_sync,portMAX_DELAY);
+    gamepad_buttons ob = {0};
+    gamepad_buttons b = {0};
+    int selected = 0;
+    while(!b.menu) {
+        draw_menu(selected);
+        b=input.read();
+        while(!b.left && !b.right && !b.up && !b.down && !b.l && !b.r && !b.a && !b.b && !b.select && !b.start && !b.menu) {
+            ob=b;
+            b=input.read();
+        }
+        delay(100);
+        if(selected>0 && b.up && !ob.up) {
+            --selected;
+            continue;
+        }
+        if(selected<2 && b.down && !ob.down) {
+            ++selected;
+            continue;
+        }
+        switch(selected) {
+            case 0:
+                if(settings.volume>0 && !ob.left&& b.left ) {
+                    if(settings.volume<10) {
+                        settings.volume = 0;
+                    } else {
+                        settings.volume-=10;
+                    }
+                    continue;
+                }
+                if(settings.volume<100 && !ob.right&& b.right ) {
+                    if(settings.volume>90) {
+                        settings.volume = 100;
+                    } else {
+                        settings.volume+=10;
+                    }
+                    continue;
+                }
+            break;
+            case 1:
+                if(settings.save_slot>0 && !ob.left&& b.left ) {
+                    settings.save_slot-=1;
+                    state_setslot(settings.save_slot);
+                    continue;
+                }
+                if(settings.volume<9 && !ob.right&& b.right ) {
+                    settings.save_slot+=1;
+                    continue;
+                }
+            break;
+            case 2:
+                if((!ob.a && b.a) || !(ob.b || b.b) || (!ob.start && b.start)) {
+                    ESP.restart();
+                }
+            break;
+        }
+    }
+    int x = 50, y=50;
+    int w = TFT_WIDTH-100, h = TFT_HEIGHT-100;
+    tft.fillRect(x,y,w,h,TFT_BLACK);
+    
+    setting_info::save(settings);
+    xSemaphoreGive(menu_sync);
+    audio_resume();
+}
 /* memory allocation */
 extern void *mem_alloc(int size, bool prefer_fast_memory)
 {
@@ -60,7 +173,7 @@ extern "C" int osd_init_sound() {
  
     //audio_init(DEFAULT_SAMPLERATE);
     audio_callback = NULL;
-    audio_volume_set(30);
+    audio_volume_set(settings.volume);
     audio_amp_enable();
     return 0;
 }
@@ -103,7 +216,7 @@ extern "C" void osd_getsoundinfo(sndinfo_t *info) {
 }
 
 /* display */
-extern TFT_eSPI tft;
+
 static int16_t w, h, frame_x, frame_y, frame_x_offset, frame_width, frame_height, frame_line_pixels;
 extern int16_t bg_color;
 extern uint16_t myPalette[];
@@ -180,7 +293,7 @@ static void display_init()
 static unsigned int framecount = 0;
 static void display_write_frame(const uint8_t *data[])
 {
- 
+    xSemaphoreTake(menu_sync,portMAX_DELAY);
   // time critical
     static unsigned int chargecount = 0;
     tft.startWrite();
@@ -276,6 +389,7 @@ static void display_write_frame(const uint8_t *data[])
     }
     tft.endWrite();
     ++framecount;
+    xSemaphoreGive(menu_sync);
 }
 static void display_clear()
 {
@@ -386,7 +500,7 @@ static void controller_init() {
 static uint32_t controller_read_input() {
     gamepad_buttons b = input.read();
     if(b.menu) {
-        ESP.restart();
+        start_menu();
     }
     return 0xFFFFFFFF ^ ((!b.down << 0) | (!b.up << 1) | (!b.right << 2) | (!b.left << 3) | (b.select << 4) | (b.start << 5) | (b.a << 6) | (b.b << 7) | (!b.l << 8) | (!b.r << 9));
 }
@@ -443,8 +557,9 @@ static int logprint(const char *string)
 
 int osd_init()
 {
+    menu_sync = xSemaphoreCreateMutex();
 	//nofrendo_log_chain_logfunc(logprint);
-
+    setting_info::load(&settings);
 	if (osd_init_sound())
 		return -1;
 
@@ -453,6 +568,7 @@ int osd_init()
 	// xTaskCreatePinnedToCore(&displayTask, "displayTask", 2048, NULL, 5, NULL, 1);
 	xTaskCreatePinnedToCore(&displayTask, "displayTask", 2048, NULL, 0, NULL, 0);
 	osd_initinput();
+    state_setslot(settings.save_slot);
 	return 0;
 }
 
@@ -460,6 +576,7 @@ void osd_shutdown()
 {
 	osd_stopsound();
 	osd_freeinput();
+    vSemaphoreDelete(menu_sync);
 }
 
 char configfilename[] = "na";

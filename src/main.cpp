@@ -1,6 +1,8 @@
 #include <Arduino.h>
+#include <SPIFFS.h>
 #include <Wire.h>
 #include <TFT_eSPI.h>
+#include <setting_info.hpp>
 #include <gamepad.hpp>
 #include <power_mgr.hpp>
 #include <audio.hpp>
@@ -21,6 +23,7 @@ extern "C"
 }
 
 TFT_eSPI tft;
+setting_info settings;
 gamepad input;
 power_mgr power;
 int16_t bg_color;
@@ -126,6 +129,7 @@ void setup() {
   char *argv[1];
   Wire.begin(21,22,uint32_t(100000));
   Serial.begin(115200);
+  SPIFFS.begin(true,"/storage");
   power.initialize();
   input.initialize();
   SD_MMC.begin("/sdcard",true);
@@ -133,7 +137,7 @@ void setup() {
   // backlight
   pinMode(27,OUTPUT);
   digitalWrite(27,HIGH);
-  
+  setting_info::load(&settings);
   Serial.printf("SD size %02fMB\n",SD_MMC.cardSize()/1024.0/1024.0);
   tft.begin();
   tft.setRotation(1);
